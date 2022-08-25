@@ -1,0 +1,85 @@
+version: "3.2"
+
+networks:
+  rabbitmq-prometheus:
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - 9090:9090
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - cadvisor
+    networks:
+      - "rabbitmq-prometheus"
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - 8080:8080
+    networks:
+      - "rabbitmq-prometheus"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    depends_on:
+      - redis
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - 6379:6379
+    networks:
+      - "rabbitmq-prometheus"
+  rabbitmq3:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "secret cookie here"
+    ports:
+      - 5672:5672
+      - 15672:15672
+      - 25672:25672
+      - 15692:15692
+    networks:
+      - "rabbitmq-prometheus"
+  grafana:
+    image: grafana/grafana
+    volumes:
+      - ./grafana/data:/var/lib/grafana
+    ports:
+      - 3000:3000
+    networks:
+      - "rabbitmq-prometheus"
+  db:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=artemacuev
+      - POSTGRES_PASSWORD=go2579752
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - APP_DB_USER=cef
+      - APP_DB_PASS=cef
+      - APP_DB_NAME=cef
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+      # copy the sql script to create tables
+      - ./sql/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
+    ports:
+      - 5432:5432
+    networks:
+      - "rabbitmq-prometheus"
+#  sender:
+#    build: rabbitmq-sender
+#    networks:
+#      - "rabbitmq-prometheus"
+#  workers:
+#    build: rabbitmq-worker
+#    networks:
+#      - "rabbitmq-prometheus"
